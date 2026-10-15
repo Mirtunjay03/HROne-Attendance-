@@ -1,0 +1,18 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+env/
+
+# Secrets / local config
+.env
+
+# Download artifacts
+kit.zip
+kit/
+
+# IDE
+.vscode/
+.idea/

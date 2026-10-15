@@ -1,0 +1,973 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>HROne · Attendance Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+/* ── Reset & base ─────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --brand:   #4f46e5;
+  --brand-d: #3730a3;
+  --brand-l: #e0e7ff;
+  --ok:      #16a34a;
+  --warn:    #d97706;
+  --err:     #dc2626;
+  --bg:      #f8fafc;
+  --surface: #ffffff;
+  --border:  #e2e8f0;
+  --txt:     #1e293b;
+  --txt2:    #64748b;
+  --radius:  8px;
+  --shadow:  0 1px 3px rgba(0,0,0,.08), 0 1px 2px rgba(0,0,0,.06);
+}
+html { font-family: 'Inter', system-ui, sans-serif; font-size: 14px; color: var(--txt); background: var(--bg); }
+a { color: var(--brand); text-decoration: none; }
+
+/* ── Layout ───────────────────────────────────────────────────── */
+.shell { display: flex; min-height: 100vh; }
+
+/* Sidebar */
+.sidebar {
+  width: 220px; flex-shrink: 0;
+  background: var(--brand-d);
+  color: #c7d2fe;
+  display: flex; flex-direction: column;
+  position: fixed; top: 0; left: 0; height: 100vh;
+  z-index: 100;
+}
+.sidebar-logo {
+  padding: 20px 18px 16px;
+  font-size: 17px; font-weight: 700; color: #fff;
+  border-bottom: 1px solid rgba(255,255,255,.1);
+  letter-spacing: -.3px;
+}
+.sidebar-logo span { color: #a5b4fc; font-weight: 400; }
+.nav { padding: 12px 0; flex: 1; }
+.nav-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 18px; cursor: pointer;
+  font-size: 13.5px; font-weight: 500;
+  border-left: 3px solid transparent;
+  transition: background .15s, color .15s;
+}
+.nav-item:hover { background: rgba(255,255,255,.08); color: #fff; }
+.nav-item.active { background: rgba(255,255,255,.12); color: #fff; border-left-color: #a5b4fc; }
+.nav-item svg { width: 16px; height: 16px; flex-shrink: 0; opacity: .8; }
+.sidebar-footer {
+  padding: 14px 18px;
+  font-size: 12px; color: rgba(255,255,255,.4);
+  border-top: 1px solid rgba(255,255,255,.1);
+}
+
+/* Main */
+.main { margin-left: 220px; flex: 1; display: flex; flex-direction: column; min-height: 100vh; }
+.topbar {
+  height: 56px; background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; padding: 0 28px;
+  gap: 12px;
+}
+.topbar-title { font-size: 16px; font-weight: 600; flex: 1; }
+.badge-ok  { background: #dcfce7; color: var(--ok);   padding: 3px 10px; border-radius: 99px; font-size: 12px; font-weight: 600; }
+.badge-err { background: #fee2e2; color: var(--err);  padding: 3px 10px; border-radius: 99px; font-size: 12px; font-weight: 600; }
+.content { padding: 28px; flex: 1; }
+
+/* ── Page sections ────────────────────────────────────────────── */
+.page { display: none; }
+.page.active { display: block; }
+
+/* ── Cards ────────────────────────────────────────────────────── */
+.card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); box-shadow: var(--shadow);
+  margin-bottom: 20px;
+}
+.card-header {
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; gap: 10px;
+}
+.card-title { font-size: 14px; font-weight: 600; flex: 1; }
+.card-body { padding: 18px; }
+
+/* ── Stat tiles ───────────────────────────────────────────────── */
+.stats-row { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px,1fr)); gap: 14px; margin-bottom: 20px; }
+.stat-tile {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 16px 18px;
+  box-shadow: var(--shadow);
+}
+.stat-label { font-size: 11.5px; color: var(--txt2); font-weight: 500; text-transform: uppercase; letter-spacing: .5px; }
+.stat-value { font-size: 26px; font-weight: 700; margin-top: 4px; color: var(--brand); }
+.stat-sub   { font-size: 11.5px; color: var(--txt2); margin-top: 2px; }
+
+/* ── Forms ────────────────────────────────────────────────────── */
+.form-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px,1fr)); gap: 14px; }
+.form-group { display: flex; flex-direction: column; gap: 4px; }
+.form-group label { font-size: 12px; font-weight: 600; color: var(--txt2); }
+.form-group input, .form-group select, .form-group textarea {
+  padding: 7px 10px; border: 1px solid var(--border); border-radius: 6px;
+  font-size: 13.5px; color: var(--txt); background: var(--bg);
+  transition: border-color .15s;
+}
+.form-group input:focus, .form-group select:focus, .form-group textarea:focus {
+  outline: none; border-color: var(--brand);
+  box-shadow: 0 0 0 3px var(--brand-l);
+}
+.form-actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+
+/* ── Buttons ──────────────────────────────────────────────────── */
+.btn {
+  padding: 7px 16px; border-radius: 6px; font-size: 13px;
+  font-weight: 600; cursor: pointer; border: none;
+  transition: opacity .15s, background .15s;
+}
+.btn:disabled { opacity: .5; cursor: not-allowed; }
+.btn-primary  { background: var(--brand); color: #fff; }
+.btn-primary:hover:not(:disabled)  { background: var(--brand-d); }
+.btn-outline  { background: transparent; color: var(--brand); border: 1.5px solid var(--brand); }
+.btn-outline:hover:not(:disabled)  { background: var(--brand-l); }
+.btn-danger   { background: var(--err); color: #fff; }
+.btn-sm { padding: 4px 10px; font-size: 12px; }
+
+/* ── Tables ───────────────────────────────────────────────────── */
+.table-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th { padding: 9px 12px; text-align: left; font-size: 11.5px; font-weight: 600;
+     color: var(--txt2); text-transform: uppercase; letter-spacing: .4px;
+     background: var(--bg); border-bottom: 1px solid var(--border); }
+td { padding: 9px 12px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+tr:last-child td { border-bottom: none; }
+tr:hover td { background: #f8fafc; }
+
+/* ── Pagination ───────────────────────────────────────────────── */
+.pagination { display: flex; align-items: center; gap: 8px; margin-top: 14px; justify-content: flex-end; }
+.pagination span { font-size: 12.5px; color: var(--txt2); }
+
+/* ── Status pills ─────────────────────────────────────────────── */
+.pill { display: inline-block; padding: 2px 9px; border-radius: 99px; font-size: 11.5px; font-weight: 600; }
+.pill-PRESENT  { background: #dcfce7; color: #166534; }
+.pill-WFH      { background: #dbeafe; color: #1e40af; }
+.pill-ON_DUTY  { background: #fef9c3; color: #854d0e; }
+.pill-ABSENT   { background: #fee2e2; color: #991b1b; }
+.pill-LEAVE    { background: #f3e8ff; color: #6b21a8; }
+
+/* ── Alerts ───────────────────────────────────────────────────── */
+.alert { padding: 10px 14px; border-radius: 6px; font-size: 13px; margin-bottom: 14px; display: none; }
+.alert.show { display: block; }
+.alert-ok  { background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
+.alert-err { background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; }
+
+/* ── Filter bar ───────────────────────────────────────────────── */
+.filter-bar { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; margin-bottom: 16px; }
+.filter-bar .form-group { min-width: 140px; }
+
+/* ── Chart container ──────────────────────────────────────────── */
+.chart-box { position: relative; height: 260px; }
+
+/* ── Empty state ──────────────────────────────────────────────── */
+.empty { text-align: center; padding: 40px 20px; color: var(--txt2); font-size: 13.5px; }
+.empty svg { width: 40px; height: 40px; margin-bottom: 10px; opacity: .3; }
+
+/* ── Responsive ───────────────────────────────────────────────── */
+@media(max-width:700px){
+  .sidebar { width: 56px; }
+  .sidebar-logo, .nav-item span, .sidebar-footer { display: none; }
+  .main { margin-left: 56px; }
+  .nav-item { justify-content: center; padding: 12px; }
+}
+</style>
+</head>
+<body>
+<div class="shell">
+
+<!-- ── Sidebar ──────────────────────────────────────────────────── -->
+<aside class="sidebar">
+  <div class="sidebar-logo">HR<span>One</span> · Attendance</div>
+  <nav class="nav">
+    <div class="nav-item active" data-page="dashboard" onclick="showPage('dashboard',this)">
+      <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+      <span>Dashboard</span>
+    </div>
+    <div class="nav-item" data-page="employees" onclick="showPage('employees',this)">
+      <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+      <span>Employees</span>
+    </div>
+    <div class="nav-item" data-page="attendance" onclick="showPage('attendance',this)">
+      <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+      <span>Attendance</span>
+    </div>
+    <div class="nav-item" data-page="punch" onclick="showPage('punch',this)">
+      <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+      <span>Punch In/Out</span>
+    </div>
+    <div class="nav-item" data-page="analytics" onclick="showPage('analytics',this)">
+      <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+      <span>Analytics</span>
+    </div>
+    <div class="nav-item" data-page="leaderboard" onclick="showPage('leaderboard',this)">
+      <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+      <span>Leaderboard</span>
+    </div>
+    <div class="nav-item" data-page="trend" onclick="showPage('trend',this)">
+      <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+      <span>Trend</span>
+    </div>
+  </nav>
+  <div class="sidebar-footer">v2.0.0</div>
+</aside>
+
+<!-- ── Main ─────────────────────────────────────────────────────── -->
+<div class="main">
+  <div class="topbar">
+    <div class="topbar-title" id="topbar-title">Dashboard</div>
+    <div id="health-badge" class="badge-ok">● MongoDB OK</div>
+  </div>
+  <div class="content">
+
+    <!-- ══════════════════════════════════════════════════════════ -->
+    <!-- DASHBOARD                                                  -->
+    <!-- ══════════════════════════════════════════════════════════ -->
+    <div id="page-dashboard" class="page active">
+      <div class="stats-row" id="dash-stats">
+        <div class="stat-tile"><div class="stat-label">Total Employees</div><div class="stat-value" id="d-emp">—</div></div>
+        <div class="stat-tile"><div class="stat-label">Today's Records</div><div class="stat-value" id="d-today">—</div></div>
+        <div class="stat-tile"><div class="stat-label">Present Today</div><div class="stat-value" id="d-present">—</div></div>
+        <div class="stat-tile"><div class="stat-label">Late Today</div><div class="stat-value" id="d-late">—</div></div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+        <div class="card">
+          <div class="card-header"><div class="card-title">Recent Attendance</div></div>
+          <div class="card-body" style="padding:0">
+            <div class="table-wrap"><table id="dash-recent-table">
+              <thead><tr><th>Employee</th><th>Date</th><th>Status</th><th>Punch In</th></tr></thead>
+              <tbody></tbody>
+            </table></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header"><div class="card-title">Department Headcount</div></div>
+          <div class="card-body"><div class="chart-box"><canvas id="dept-chart"></canvas></div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════════════════════ -->
+    <!-- EMPLOYEES                                                  -->
+    <!-- ══════════════════════════════════════════════════════════ -->
+    <div id="page-employees" class="page">
+      <!-- Create form -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">Add Employee</div>
+          <button class="btn btn-outline btn-sm" onclick="toggleCreate()">+ New</button>
+        </div>
+        <div class="card-body" id="create-emp-form" style="display:none">
+          <div id="create-emp-alert" class="alert"></div>
+          <div class="form-grid">
+            <div class="form-group"><label>Emp Code *</label><input id="e-code" placeholder="EMP0001"/></div>
+            <div class="form-group"><label>Name *</label><input id="e-name" placeholder="Full Name"/></div>
+            <div class="form-group"><label>Email *</label><input id="e-email" placeholder="email@example.com"/></div>
+            <div class="form-group"><label>Department *</label><input id="e-dept" placeholder="Engineering"/></div>
+            <div class="form-group"><label>Joined On *</label><input id="e-joined" type="date"/></div>
+            <div class="form-group"><label>Shift Start</label><input id="e-sstart" value="09:30" placeholder="09:30"/></div>
+            <div class="form-group"><label>Shift End</label><input id="e-send" value="18:30" placeholder="18:30"/></div>
+          </div>
+          <div class="form-actions" style="margin-top:14px">
+            <button class="btn btn-primary" onclick="createEmployee()">Create Employee</button>
+            <button class="btn btn-outline" onclick="toggleCreate()">Cancel</button>
+          </div>
+        </div>
+      </div>
+      <!-- Filter + list -->
+      <div class="card">
+        <div class="card-header"><div class="card-title">Employee List</div></div>
+        <div class="card-body" style="padding-bottom:0">
+          <div class="filter-bar">
+            <div class="form-group"><label>Department</label><input id="emp-filter-dept" placeholder="All departments" oninput="loadEmployees(1)"/></div>
+            <button class="btn btn-outline btn-sm" onclick="loadEmployees(1)">Filter</button>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table id="emp-table">
+            <thead><tr><th>Emp Code</th><th>Name</th><th>Department</th><th>Email</th><th>Shift</th><th>Joined</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <div class="card-body" style="padding-top:8px">
+          <div class="pagination">
+            <button class="btn btn-outline btn-sm" id="emp-prev" onclick="loadEmployees(empPage-1)">‹ Prev</button>
+            <span id="emp-page-info"></span>
+            <button class="btn btn-outline btn-sm" id="emp-next" onclick="loadEmployees(empPage+1)">Next ›</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════════════════════ -->
+    <!-- ATTENDANCE LIST                                            -->
+    <!-- ══════════════════════════════════════════════════════════ -->
+    <div id="page-attendance" class="page">
+      <div class="card">
+        <div class="card-header"><div class="card-title">Attendance Records</div></div>
+        <div class="card-body" style="padding-bottom:0">
+          <div class="filter-bar">
+            <div class="form-group"><label>Emp Code</label><input id="att-f-emp" placeholder="EMP0001"/></div>
+            <div class="form-group"><label>Date From</label><input id="att-f-from" type="date"/></div>
+            <div class="form-group"><label>Date To</label><input id="att-f-to" type="date"/></div>
+            <div class="form-group"><label>Status</label>
+              <select id="att-f-status">
+                <option value="">All</option>
+                <option>PRESENT</option><option>WFH</option><option>ON_DUTY</option>
+                <option>ABSENT</option><option>LEAVE</option>
+              </select>
+            </div>
+            <button class="btn btn-primary btn-sm" onclick="loadAttendance(1)">Search</button>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table id="att-table">
+            <thead><tr><th>Emp Code</th><th>Date</th><th>Status</th><th>Punch In</th><th>Punch Out</th><th>Work Hrs</th><th>Late Min</th><th>OT Min</th><th>Half Day</th><th>Action</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <div class="card-body" style="padding-top:8px">
+          <div class="pagination">
+            <button class="btn btn-outline btn-sm" id="att-prev" onclick="loadAttendance(attPage-1)">‹ Prev</button>
+            <span id="att-page-info"></span>
+            <button class="btn btn-outline btn-sm" id="att-next" onclick="loadAttendance(attPage+1)">Next ›</button>
+          </div>
+        </div>
+      </div>
+      <!-- Regularize modal -->
+      <div id="reg-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:200;align-items:center;justify-content:center;">
+        <div class="card" style="width:460px;max-width:95vw;margin:0">
+          <div class="card-header"><div class="card-title">Regularize Record</div><button class="btn btn-outline btn-sm" onclick="closeReg()">✕</button></div>
+          <div class="card-body">
+            <div id="reg-alert" class="alert"></div>
+            <div class="form-grid" style="grid-template-columns:1fr 1fr">
+              <div class="form-group" style="grid-column:1/-1"><label>Record</label><input id="reg-key" disabled/></div>
+              <div class="form-group"><label>Status</label>
+                <select id="reg-status">
+                  <option value="">— keep current —</option>
+                  <option>PRESENT</option><option>WFH</option><option>ON_DUTY</option>
+                  <option>ABSENT</option><option>LEAVE</option>
+                </select>
+              </div>
+              <div class="form-group"></div>
+              <div class="form-group"><label>Punch In (epoch ms)</label><input id="reg-pin" placeholder="leave blank to keep"/></div>
+              <div class="form-group"><label>Punch Out (epoch ms)</label><input id="reg-pout" placeholder="leave blank to keep"/></div>
+              <div class="form-group" style="grid-column:1/-1"><label>Reason * (min 5 chars)</label><input id="reg-reason" placeholder="Biometric glitch"/></div>
+              <div class="form-group" style="grid-column:1/-1"><label>Regularized By *</label><input id="reg-by" placeholder="hr.admin"/></div>
+            </div>
+            <div class="form-actions" style="margin-top:14px">
+              <button class="btn btn-primary" onclick="submitReg()">Save Changes</button>
+              <button class="btn btn-outline" onclick="closeReg()">Cancel</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════════════════════ -->
+    <!-- PUNCH IN / OUT                                             -->
+    <!-- ══════════════════════════════════════════════════════════ -->
+    <div id="page-punch" class="page">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
+        <!-- Punch In -->
+        <div class="card">
+          <div class="card-header"><div class="card-title">🟢 Punch In</div></div>
+          <div class="card-body">
+            <div id="pi-alert" class="alert"></div>
+            <div class="form-grid" style="grid-template-columns:1fr">
+              <div class="form-group"><label>Emp Code *</label><input id="pi-emp" placeholder="EMP0001"/></div>
+              <div class="form-group">
+                <label>Status</label>
+                <select id="pi-status">
+                  <option value="PRESENT">PRESENT</option>
+                  <option value="WFH">WFH</option>
+                  <option value="ON_DUTY">ON_DUTY</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>Punched At</label>
+                <input id="pi-time" type="datetime-local" step="1"/>
+                <small style="color:var(--txt2);font-size:11px">Leave blank for now</small>
+              </div>
+            </div>
+            <div class="form-actions" style="margin-top:16px">
+              <button class="btn btn-primary" onclick="punchIn()">Punch In</button>
+            </div>
+            <div id="pi-result" style="margin-top:14px;display:none" class="card" >
+              <div class="card-body" id="pi-result-body" style="font-size:13px;line-height:1.8"></div>
+            </div>
+          </div>
+        </div>
+        <!-- Punch Out -->
+        <div class="card">
+          <div class="card-header"><div class="card-title">🔴 Punch Out</div></div>
+          <div class="card-body">
+            <div id="po-alert" class="alert"></div>
+            <div class="form-grid" style="grid-template-columns:1fr">
+              <div class="form-group"><label>Emp Code *</label><input id="po-emp" placeholder="EMP0001"/></div>
+              <div class="form-group">
+                <label>Punched At</label>
+                <input id="po-time" type="datetime-local" step="1"/>
+                <small style="color:var(--txt2);font-size:11px">Leave blank for now</small>
+              </div>
+            </div>
+            <div class="form-actions" style="margin-top:16px">
+              <button class="btn btn-primary" onclick="punchOut()">Punch Out</button>
+            </div>
+            <div id="po-result" style="margin-top:14px;display:none" class="card">
+              <div class="card-body" id="po-result-body" style="font-size:13px;line-height:1.8"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════════════════════ -->
+    <!-- ANALYTICS                                                  -->
+    <!-- ══════════════════════════════════════════════════════════ -->
+    <div id="page-analytics" class="page">
+      <!-- Employee monthly -->
+      <div class="card">
+        <div class="card-header"><div class="card-title">Employee Monthly Summary</div></div>
+        <div class="card-body">
+          <div id="monthly-alert" class="alert"></div>
+          <div class="filter-bar">
+            <div class="form-group"><label>Emp Code *</label><input id="m-emp" placeholder="EMP0001"/></div>
+            <div class="form-group"><label>Month *</label><input id="m-month" type="month"/></div>
+            <button class="btn btn-primary btn-sm" onclick="loadMonthly()">Fetch</button>
+          </div>
+          <div id="monthly-result" style="display:none">
+            <div class="stats-row" style="margin-top:10px">
+              <div class="stat-tile"><div class="stat-label">Working Days</div><div class="stat-value" id="mr-wd">—</div></div>
+              <div class="stat-tile"><div class="stat-label">Present Days</div><div class="stat-value" id="mr-pd">—</div></div>
+              <div class="stat-tile"><div class="stat-label">Leave Days</div><div class="stat-value" id="mr-ld">—</div></div>
+              <div class="stat-tile"><div class="stat-label">Late Count</div><div class="stat-value" id="mr-lc">—</div></div>
+              <div class="stat-tile"><div class="stat-label">Total Late Min</div><div class="stat-value" id="mr-lm">—</div></div>
+              <div class="stat-tile"><div class="stat-label">OT Minutes</div><div class="stat-value" id="mr-ot">—</div></div>
+              <div class="stat-tile"><div class="stat-label">Attendance %</div><div class="stat-value" id="mr-pct">—</div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Department summary -->
+      <div class="card">
+        <div class="card-header"><div class="card-title">Department Summary</div></div>
+        <div class="card-body" style="padding-bottom:0">
+          <div class="filter-bar">
+            <div class="form-group"><label>Month *</label><input id="ds-month" type="month"/></div>
+            <div class="form-group"><label>Department</label><input id="ds-dept" placeholder="All"/></div>
+            <button class="btn btn-primary btn-sm" onclick="loadDeptSummary()">Fetch</button>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table id="ds-table">
+            <thead><tr><th>Department</th><th>Headcount</th><th>Present Days</th><th>Avg Work Hrs</th><th>Late Count</th><th>Total Late Min</th><th>Leave Count</th><th>On Duty</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════════════════════ -->
+    <!-- LEADERBOARD                                                -->
+    <!-- ══════════════════════════════════════════════════════════ -->
+    <div id="page-leaderboard" class="page">
+      <div class="card">
+        <div class="card-header"><div class="card-title">🏆 Late-Comers Leaderboard</div></div>
+        <div class="card-body" style="padding-bottom:0">
+          <div class="filter-bar">
+            <div class="form-group"><label>Month *</label><input id="lb-month" type="month"/></div>
+            <div class="form-group"><label>Department</label><input id="lb-dept" placeholder="All"/></div>
+            <div class="form-group"><label>Limit</label><input id="lb-limit" type="number" value="10" min="1" max="50" style="width:70px"/></div>
+            <button class="btn btn-primary btn-sm" onclick="loadLeaderboard()">Fetch</button>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table id="lb-table">
+            <thead><tr><th>Rank</th><th>Emp Code</th><th>Name</th><th>Department</th><th>Total Late Minutes</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════════════════════ -->
+    <!-- TREND                                                      -->
+    <!-- ══════════════════════════════════════════════════════════ -->
+    <div id="page-trend" class="page">
+      <div class="card">
+        <div class="card-header"><div class="card-title">Daily Attendance Trend</div></div>
+        <div class="card-body">
+          <div id="trend-alert" class="alert"></div>
+          <div class="filter-bar">
+            <div class="form-group"><label>Department *</label><input id="tr-dept" placeholder="Engineering"/></div>
+            <div class="form-group"><label>From *</label><input id="tr-from" type="date"/></div>
+            <div class="form-group"><label>To *</label><input id="tr-to" type="date"/></div>
+            <button class="btn btn-primary btn-sm" onclick="loadTrend()">Fetch</button>
+          </div>
+          <div class="chart-box" style="height:300px;margin-top:10px"><canvas id="trend-chart"></canvas></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-header"><div class="card-title">Daily Data</div></div>
+        <div class="table-wrap">
+          <table id="trend-table">
+            <thead><tr><th>Date</th><th>Working Day</th><th>Headcount</th><th>Present</th><th>Late Count</th><th>Attend. Rate</th><th>7d Moving Avg</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /content -->
+</div><!-- /main -->
+</div><!-- /shell -->
+
+<script>
+// ── Helpers ──────────────────────────────────────────────────────────────────
+const API = '';   // same origin
+
+async function apiFetch(method, path, body) {
+  const opts = { method, headers: { 'Content-Type': 'application/json' } };
+  if (body !== undefined) opts.body = JSON.stringify(body);
+  const r = await fetch(API + path, opts);
+  const data = await r.json().catch(() => ({}));
+  return { ok: r.ok, status: r.status, data };
+}
+
+function showAlert(id, msg, type='err') {
+  const el = document.getElementById(id);
+  el.className = 'alert show alert-' + type;
+  el.textContent = msg;
+  setTimeout(() => el.classList.remove('show'), 5000);
+}
+
+function fmtMs(ms) {
+  if (ms == null) return '—';
+  return new Date(ms).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', hour12: false,
+    year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit' });
+}
+function fmtDate(d) { return d || '—'; }
+function localToMs(localStr) {
+  // datetime-local value → epoch ms (treated as IST)
+  if (!localStr) return null;
+  const [date, time] = localStr.split('T');
+  const [y,mo,dy] = date.split('-').map(Number);
+  const [h,mi,s=0] = time.split(':').map(Number);
+  // IST = UTC+5:30
+  const utcMs = Date.UTC(y, mo-1, dy, h, mi, s) - (5*60+30)*60000;
+  return utcMs;
+}
+
+// ── Navigation ────────────────────────────────────────────────────────────────
+const PAGE_TITLES = {
+  dashboard:'Dashboard', employees:'Employees', attendance:'Attendance',
+  punch:'Punch In / Out', analytics:'Analytics', leaderboard:'Leaderboard', trend:'Trend'
+};
+function showPage(name, el) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('page-' + name).classList.add('active');
+  el.classList.add('active');
+  document.getElementById('topbar-title').textContent = PAGE_TITLES[name];
+  if (name === 'dashboard') loadDashboard();
+  if (name === 'employees') loadEmployees(1);
+  if (name === 'attendance') loadAttendance(1);
+}
+
+// ── Health check ──────────────────────────────────────────────────────────────
+async function checkHealth() {
+  const { ok } = await apiFetch('GET', '/health');
+  const badge = document.getElementById('health-badge');
+  badge.className = ok ? 'badge-ok' : 'badge-err';
+  badge.textContent = ok ? '● MongoDB OK' : '● MongoDB DOWN';
+}
+
+// ── Dashboard ─────────────────────────────────────────────────────────────────
+let deptChart = null;
+async function loadDashboard() {
+  const [empR, attR] = await Promise.all([
+    apiFetch('GET', '/employees?page_size=1'),
+    apiFetch('GET', '/attendance?page_size=100'),
+  ]);
+  if (empR.ok) document.getElementById('d-emp').textContent = empR.data.total;
+
+  const today = new Date().toLocaleDateString('en-CA', {timeZone:'Asia/Kolkata'}); // YYYY-MM-DD
+  const todayR = await apiFetch('GET', `/attendance?date_from=${today}&date_to=${today}&page_size=100`);
+
+  if (todayR.ok) {
+    const items = todayR.data.items || [];
+    document.getElementById('d-today').textContent = todayR.data.total;
+    const present = items.filter(i => ['PRESENT','WFH','ON_DUTY'].includes(i.status)).length;
+    const late    = items.filter(i => i.late_minutes > 0).length;
+    document.getElementById('d-present').textContent = present;
+    document.getElementById('d-late').textContent = late;
+  }
+
+  // Recent attendance table
+  if (attR.ok) {
+    const tbody = document.querySelector('#dash-recent-table tbody');
+    tbody.innerHTML = '';
+    (attR.data.items || []).slice(0,8).forEach(r => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td>${r.emp_code}</td><td>${r.date}</td><td><span class="pill pill-${r.status}">${r.status}</span></td><td>${fmtMs(r.punch_in)}</td>`;
+      tbody.appendChild(tr);
+    });
+  }
+
+  // Department chart
+  const deptsR = await apiFetch('GET', '/employees?page_size=200');
+  if (deptsR.ok) {
+    const deptCount = {};
+    (deptsR.data.items||[]).forEach(e => { deptCount[e.department] = (deptCount[e.department]||0)+1; });
+    const labels = Object.keys(deptCount);
+    const values = Object.values(deptCount);
+    const colors = ['#6366f1','#22d3ee','#f59e0b','#10b981','#f43f5e','#8b5cf6','#84cc16'];
+    if (deptChart) deptChart.destroy();
+    deptChart = new Chart(document.getElementById('dept-chart'), {
+      type: 'doughnut',
+      data: { labels, datasets: [{ data: values, backgroundColor: colors, borderWidth: 2, borderColor:'#fff' }] },
+      options: { plugins: { legend: { position: 'right' } }, maintainAspectRatio: false }
+    });
+  }
+}
+
+// ── Employees ─────────────────────────────────────────────────────────────────
+let empPage = 1;
+async function loadEmployees(page=1) {
+  empPage = Math.max(1, page);
+  const dept = document.getElementById('emp-filter-dept').value.trim();
+  let url = `/employees?page=${empPage}&page_size=15`;
+  if (dept) url += `&department=${encodeURIComponent(dept)}`;
+  const { ok, data } = await apiFetch('GET', url);
+  if (!ok) return;
+  const tbody = document.querySelector('#emp-table tbody');
+  tbody.innerHTML = '';
+  (data.items||[]).forEach(e => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td><strong>${e.emp_code}</strong></td><td>${e.name}</td><td>${e.department}</td>
+      <td>${e.email}</td><td>${e.shift_start}–${e.shift_end}</td><td>${e.joined_on}</td>`;
+    tbody.appendChild(tr);
+  });
+  if (!data.items?.length) tbody.innerHTML = `<tr><td colspan="6" class="empty">No employees found.</td></tr>`;
+  const total = data.total || 0;
+  const pages = Math.ceil(total / 15) || 1;
+  document.getElementById('emp-page-info').textContent = `Page ${empPage} of ${pages} (${total} total)`;
+  document.getElementById('emp-prev').disabled = empPage <= 1;
+  document.getElementById('emp-next').disabled = empPage >= pages;
+}
+
+function toggleCreate() {
+  const f = document.getElementById('create-emp-form');
+  f.style.display = f.style.display === 'none' ? 'block' : 'none';
+}
+
+async function createEmployee() {
+  const body = {
+    emp_code:    document.getElementById('e-code').value.trim(),
+    name:        document.getElementById('e-name').value.trim(),
+    email:       document.getElementById('e-email').value.trim(),
+    department:  document.getElementById('e-dept').value.trim(),
+    joined_on:   document.getElementById('e-joined').value,
+    shift_start: document.getElementById('e-sstart').value || '09:30',
+    shift_end:   document.getElementById('e-send').value   || '18:30',
+  };
+  const { ok, status, data } = await apiFetch('POST', '/employees', body);
+  if (ok) {
+    showAlert('create-emp-alert', `✓ Employee ${data.emp_code} created.`, 'ok');
+    loadEmployees(1);
+  } else {
+    const msg = typeof data.detail === 'string' ? data.detail : JSON.stringify(data.detail);
+    showAlert('create-emp-alert', `Error ${status}: ${msg}`, 'err');
+  }
+}
+
+// ── Attendance ────────────────────────────────────────────────────────────────
+let attPage = 1;
+async function loadAttendance(page=1) {
+  attPage = Math.max(1, page);
+  const emp    = document.getElementById('att-f-emp').value.trim();
+  const dfrom  = document.getElementById('att-f-from').value;
+  const dto    = document.getElementById('att-f-to').value;
+  const status = document.getElementById('att-f-status').value;
+  let url = `/attendance?page=${attPage}&page_size=15`;
+  if (emp)    url += `&emp_code=${encodeURIComponent(emp)}`;
+  if (dfrom)  url += `&date_from=${dfrom}`;
+  if (dto)    url += `&date_to=${dto}`;
+  if (status) url += `&status=${status}`;
+  const { ok, data } = await apiFetch('GET', url);
+  if (!ok) return;
+  const tbody = document.querySelector('#att-table tbody');
+  tbody.innerHTML = '';
+  (data.items||[]).forEach(r => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td><strong>${r.emp_code}</strong></td>
+      <td>${r.date}</td>
+      <td><span class="pill pill-${r.status}">${r.status}</span></td>
+      <td style="font-size:12px">${fmtMs(r.punch_in)}</td>
+      <td style="font-size:12px">${fmtMs(r.punch_out)}</td>
+      <td>${r.work_hours ?? '—'}</td>
+      <td>${r.late_minutes ?? 0}</td>
+      <td>${r.overtime_minutes ?? 0}</td>
+      <td>${r.half_day ? '✓' : '—'}</td>
+      <td><button class="btn btn-outline btn-sm" onclick='openReg("${r.emp_code}","${r.date}")'>Edit</button></td>`;
+    tbody.appendChild(tr);
+  });
+  if (!data.items?.length) tbody.innerHTML = `<tr><td colspan="10" class="empty">No records found.</td></tr>`;
+  const total = data.total || 0;
+  const pages = Math.ceil(total / 15) || 1;
+  document.getElementById('att-page-info').textContent = `Page ${attPage} of ${pages} (${total} total)`;
+  document.getElementById('att-prev').disabled = attPage <= 1;
+  document.getElementById('att-next').disabled = attPage >= pages;
+}
+
+let regEmp = '', regDate = '';
+function openReg(emp, date) {
+  regEmp = emp; regDate = date;
+  document.getElementById('reg-key').value = `${emp} / ${date}`;
+  document.getElementById('reg-status').value = '';
+  document.getElementById('reg-pin').value = '';
+  document.getElementById('reg-pout').value = '';
+  document.getElementById('reg-reason').value = '';
+  document.getElementById('reg-by').value = '';
+  document.getElementById('reg-modal').style.display = 'flex';
+}
+function closeReg() { document.getElementById('reg-modal').style.display = 'none'; }
+
+async function submitReg() {
+  const body = {
+    reason:         document.getElementById('reg-reason').value.trim(),
+    regularized_by: document.getElementById('reg-by').value.trim(),
+  };
+  const st  = document.getElementById('reg-status').value;
+  const pin = document.getElementById('reg-pin').value.trim();
+  const pout= document.getElementById('reg-pout').value.trim();
+  if (st)   body.status    = st;
+  if (pin)  body.punch_in  = Number(pin);
+  if (pout) body.punch_out = Number(pout);
+
+  const { ok, status, data } = await apiFetch('PATCH', `/attendance/${regEmp}/${regDate}`, body);
+  if (ok) {
+    showAlert('reg-alert', '✓ Record updated.', 'ok');
+    setTimeout(() => { closeReg(); loadAttendance(attPage); }, 1200);
+  } else {
+    const msg = typeof data.detail === 'string' ? data.detail : JSON.stringify(data.detail);
+    showAlert('reg-alert', `Error ${status}: ${msg}`, 'err');
+  }
+}
+
+// ── Punch In ──────────────────────────────────────────────────────────────────
+async function punchIn() {
+  const emp    = document.getElementById('pi-emp').value.trim();
+  const status = document.getElementById('pi-status').value;
+  const t      = document.getElementById('pi-time').value;
+  if (!emp) { showAlert('pi-alert','Emp Code is required'); return; }
+  const body = { emp_code: emp, status };
+  if (t) { const ms = localToMs(t); if (ms) body.punched_at = ms; }
+  const { ok, status: st, data } = await apiFetch('POST', '/attendance/punch-in', body);
+  const resultDiv = document.getElementById('pi-result');
+  const resultBody = document.getElementById('pi-result-body');
+  if (ok) {
+    showAlert('pi-alert', '✓ Punched in successfully.', 'ok');
+    resultDiv.style.display = 'block';
+    resultBody.innerHTML = `
+      <b>Date:</b> ${data.date} &nbsp; <b>Status:</b> <span class="pill pill-${data.status}">${data.status}</span><br>
+      <b>Punch In:</b> ${fmtMs(data.punch_in)}<br>
+      <b>Late Minutes:</b> ${data.late_minutes}`;
+  } else {
+    const msg = typeof data.detail==='string' ? data.detail : JSON.stringify(data.detail);
+    showAlert('pi-alert', `Error ${st}: ${msg}`);
+    resultDiv.style.display = 'none';
+  }
+}
+
+async function punchOut() {
+  const emp = document.getElementById('po-emp').value.trim();
+  const t   = document.getElementById('po-time').value;
+  if (!emp) { showAlert('po-alert','Emp Code is required'); return; }
+  const body = { emp_code: emp };
+  if (t) { const ms = localToMs(t); if (ms) body.punched_at = ms; }
+  const { ok, status: st, data } = await apiFetch('POST', '/attendance/punch-out', body);
+  const resultDiv  = document.getElementById('po-result');
+  const resultBody = document.getElementById('po-result-body');
+  if (ok) {
+    showAlert('po-alert', '✓ Punched out successfully.', 'ok');
+    resultDiv.style.display = 'block';
+    resultBody.innerHTML = `
+      <b>Date:</b> ${data.date} &nbsp; <b>Status:</b> <span class="pill pill-${data.status}">${data.status}</span><br>
+      <b>Punch In:</b>  ${fmtMs(data.punch_in)}<br>
+      <b>Punch Out:</b> ${fmtMs(data.punch_out)}<br>
+      <b>Work Hours:</b> ${data.work_hours} &nbsp;
+      <b>Overtime:</b> ${data.overtime_minutes} min &nbsp;
+      <b>Half Day:</b> ${data.half_day ? 'Yes' : 'No'}`;
+  } else {
+    const msg = typeof data.detail==='string' ? data.detail : JSON.stringify(data.detail);
+    showAlert('po-alert', `Error ${st}: ${msg}`);
+    resultDiv.style.display = 'none';
+  }
+}
+
+// ── Analytics: monthly ────────────────────────────────────────────────────────
+async function loadMonthly() {
+  const emp   = document.getElementById('m-emp').value.trim();
+  const month = document.getElementById('m-month').value;
+  if (!emp || !month) { showAlert('monthly-alert','Emp Code and Month are required'); return; }
+  const { ok, status, data } = await apiFetch('GET', `/analytics/employees/${encodeURIComponent(emp)}/monthly?month=${month}`);
+  const res = document.getElementById('monthly-result');
+  if (ok) {
+    res.style.display = 'block';
+    document.getElementById('mr-wd').textContent  = data.working_days;
+    document.getElementById('mr-pd').textContent  = data.present_days;
+    document.getElementById('mr-ld').textContent  = data.leave_days;
+    document.getElementById('mr-lc').textContent  = data.late_count;
+    document.getElementById('mr-lm').textContent  = data.total_late_minutes;
+    document.getElementById('mr-ot').textContent  = data.total_overtime_minutes;
+    document.getElementById('mr-pct').textContent = data.attendance_pct != null ? data.attendance_pct + '%' : '—';
+  } else {
+    const msg = typeof data.detail==='string' ? data.detail : JSON.stringify(data.detail);
+    showAlert('monthly-alert', `Error ${status}: ${msg}`);
+    res.style.display = 'none';
+  }
+}
+
+// ── Analytics: department summary ─────────────────────────────────────────────
+async function loadDeptSummary() {
+  const month = document.getElementById('ds-month').value;
+  const dept  = document.getElementById('ds-dept').value.trim();
+  if (!month) return;
+  let url = `/analytics/departments/summary?month=${month}`;
+  if (dept) url += `&department=${encodeURIComponent(dept)}`;
+  const { ok, data } = await apiFetch('GET', url);
+  const tbody = document.querySelector('#ds-table tbody');
+  tbody.innerHTML = '';
+  if (!ok) return;
+  (data.items||[]).forEach(r => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td><strong>${r.department}</strong></td>
+      <td>${r.headcount}</td><td>${r.present_days}</td>
+      <td>${r.avg_work_hours ?? '—'}</td><td>${r.late_count}</td>
+      <td>${r.total_late_minutes}</td><td>${r.leave_count}</td><td>${r.on_duty_count}</td>`;
+    tbody.appendChild(tr);
+  });
+  if (!data.items?.length) tbody.innerHTML = `<tr><td colspan="8" class="empty">No data.</td></tr>`;
+}
+
+// ── Leaderboard ────────────────────────────────────────────────────────────────
+async function loadLeaderboard() {
+  const month = document.getElementById('lb-month').value;
+  const dept  = document.getElementById('lb-dept').value.trim();
+  const limit = document.getElementById('lb-limit').value || 10;
+  if (!month) return;
+  let url = `/analytics/leaderboard/late?month=${month}&limit=${limit}`;
+  if (dept) url += `&department=${encodeURIComponent(dept)}`;
+  const { ok, data } = await apiFetch('GET', url);
+  const tbody = document.querySelector('#lb-table tbody');
+  tbody.innerHTML = '';
+  if (!ok) return;
+  (data.items||[]).forEach(r => {
+    const rankColor = r.rank === 1 ? '#f59e0b' : r.rank === 2 ? '#94a3b8' : r.rank === 3 ? '#cd7f32' : '';
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td><strong style="font-size:18px;color:${rankColor}">${r.rank}</strong></td>
+      <td>${r.emp_code}</td><td>${r.name}</td><td>${r.department}</td>
+      <td><strong>${r.total_late_minutes}</strong> min</td>`;
+    tbody.appendChild(tr);
+  });
+  if (!data.items?.length) tbody.innerHTML = `<tr><td colspan="5" class="empty">No late records for this period.</td></tr>`;
+}
+
+// ── Trend ──────────────────────────────────────────────────────────────────────
+let trendChart = null;
+async function loadTrend() {
+  const dept = document.getElementById('tr-dept').value.trim();
+  const from = document.getElementById('tr-from').value;
+  const to   = document.getElementById('tr-to').value;
+  if (!dept || !from || !to) { showAlert('trend-alert','Department, From and To are required'); return; }
+  const { ok, status, data } = await apiFetch('GET', `/analytics/departments/${encodeURIComponent(dept)}/trend?from=${from}&to=${to}`);
+  if (!ok) {
+    const msg = typeof data.detail==='string' ? data.detail : JSON.stringify(data.detail);
+    showAlert('trend-alert', `Error ${status}: ${msg}`);
+    return;
+  }
+  const items = data.items || [];
+
+  // Table
+  const tbody = document.querySelector('#trend-table tbody');
+  tbody.innerHTML = '';
+  items.forEach(r => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${r.date}</td>
+      <td>${r.is_working_day ? '✓' : '—'}</td>
+      <td>${r.headcount}</td>
+      <td>${r.present_count}</td>
+      <td>${r.late_count}</td>
+      <td>${r.attendance_rate != null ? (r.attendance_rate*100).toFixed(2)+'%' : '—'}</td>
+      <td>${r.moving_avg_7d  != null ? (r.moving_avg_7d *100).toFixed(2)+'%' : '—'}</td>`;
+    tbody.appendChild(tr);
+  });
+
+  // Chart
+  const labels = items.map(r => r.date);
+  const rates  = items.map(r => r.attendance_rate  != null ? +(r.attendance_rate *100).toFixed(2) : null);
+  const ma7    = items.map(r => r.moving_avg_7d    != null ? +(r.moving_avg_7d  *100).toFixed(2) : null);
+
+  if (trendChart) trendChart.destroy();
+  trendChart = new Chart(document.getElementById('trend-chart'), {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [
+        {
+          label: 'Attendance Rate (%)',
+          data: rates,
+          borderColor: '#6366f1', backgroundColor: 'rgba(99,102,241,.1)',
+          tension: .3, fill: true, pointRadius: 3,
+          spanGaps: false,
+        },
+        {
+          label: '7-Day Moving Avg (%)',
+          data: ma7,
+          borderColor: '#f59e0b', backgroundColor: 'transparent',
+          tension: .3, fill: false, pointRadius: 2, borderDash: [5,3],
+          spanGaps: true,
+        }
+      ]
+    },
+    options: {
+      maintainAspectRatio: false,
+      plugins: { legend: { position: 'top' } },
+      scales: {
+        y: { min: 0, max: 100, ticks: { callback: v => v + '%' } },
+        x: { ticks: { maxTicksLimit: 14 } }
+      }
+    }
+  });
+}
+
+// ── Init ───────────────────────────────────────────────────────────────────────
+// Set default month inputs to current month
+const nowIST = new Date(Date.now() + (5*60+30)*60000);
+const ym = nowIST.toISOString().slice(0,7);
+const yd = nowIST.toISOString().slice(0,10);
+['m-month','ds-month','lb-month'].forEach(id => { const el=document.getElementById(id); if(el) el.value=ym; });
+['tr-from','att-f-from'].forEach(id => {
+  const el = document.getElementById(id);
+  if(el) el.value = yd.slice(0,8) + '01';
+});
+['tr-to','att-f-to'].forEach(id => { const el=document.getElementById(id); if(el) el.value=yd; });
+
+checkHealth();
+loadDashboard();
+setInterval(checkHealth, 30000);
+</script>
+</body>
+</html>
